@@ -1,0 +1,70 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load data
+df = pd.read_excel('versand.xlsx')
+
+# Convert 'Date' and 'Time', handle missing times
+df['Date'] = pd.to_datetime(df['Date'])
+df['Time'] = pd.to_datetime(df['Time'], format='%H:%M:%S', errors='coerce')
+df.dropna(subset=['Time'], inplace=True)
+
+# Create a combined datetime column
+df['delivery_datetime'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].dt.time.astype(str))
+
+# Define function to categorize shifts and adjust dates for overnight shifts
+def categorize_shift(row):
+    hour = row['delivery_datetime'].hour
+    shift_date = row['Date']
+    shift_category = ''
+    if 6 <= hour < 14:
+        shift_category = 'DE'
+    elif 14 <= hour < 22:
+        shift_category = 'DU'
+    else:
+        shift_category = 'ÉJ'
+        if hour < 6:
+            shift_date = shift_date - pd.Timedelta(days=1)
+    return shift_date, shift_category
+
+# Apply the shift categorization
+df[['Adjusted_Date', 'shift_category']] = df.apply(categorize_shift, axis=1, result_type='expand')
+df['Week'] = df['Adjusted_Date'].dt.isocalendar().week
+
+# Define the rotation logic based on the week number
+def get_shift_label(week_num, shift_category):
+    rotation = [
+        {'DE': 'A', 'DU': 'B', 'ÉJ': 'C'},  # Week 1 pattern
+        {'DE': 'B', 'DU': 'C', 'ÉJ': 'A'},  # Week 2 pattern
+        {'DE': 'C', 'DU': 'A', 'ÉJ': 'B'}   # Week 3 pattern
+    ]
+    return rotation[(week_num - 1) % 3][shift_category]
+
+# Assign shift labels
+df['shift_label'] = df.apply(lambda row: get_shift_label(row['Week'], row['shift_category']), axis=1)
+
+# Calculate totals for plotting and Excel output
+daily_totals = df.groupby(['Adjusted_Date', 'shift_category', 'shift_label']).size().reset_index(name='Daily Total')
+weekly_totals = df.groupby(['Week', 'shift_category', 'shift_label']).size().reset_index(name='Weekly Total')
+
+# Export to Excel with detailed and summary sheets
+with pd.ExcelWriter('versand2024.xlsx', engine='xlsxwriter') as writer:
+    # Export detailed shift data excluding certain columns
+    exclude_columns = ['Date', 'Time', 'delivery_datetime', 'Adjusted_Date']
+    for date in df['Adjusted_Date'].unique():
+        daily_df = df[df['Adjusted_Date'] == date]
+        for shift in daily_df['shift_category'].unique():
+            sheet_data = daily_df[daily_df['shift_category'] == shift]
+            sheet_data = sheet_data.drop(columns=exclude_columns)  # Exclude columns
+            if not sheet_data.empty:
+                shift_label = sheet_data['shift_label'].iloc[0]
+                sheet_name = f"{date.strftime('%Y-%m-%d')} {shift_label} {shift}"
+                sheet_data.to_excel(writer, sheet_name=sheet_name[:31], index=False)
+
+    # Export daily totals
+    daily_totals.to_excel(writer, sheet_name='Daily Totals', index=False)
+
+    # Export weekly totals
+    weekly_totals.to_excel(writer, sheet_name='Weekly Totals', index=False)
+
+print("Data export to Excel completed.")
