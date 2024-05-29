@@ -6,154 +6,179 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QCombo
 from pyrfc import Connection
 from reportlab.lib.pagesizes import landscape, letter
 from reportlab.pdfgen import canvas
-from datetime import datetime
 import qrcode
 from PIL import Image
+import os
+import subprocess
+import logging
 
+logger = logging.getLogger('PrinterLogger')
+logger.setLevel(logging.INFO)
+handler = logging.handlers.RotatingFileHandler('print_jobs.log', maxBytes=10485760, backupCount=5)
+formatter = logging.Formatter('%(asctime)s %(levelname)s:%(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 class LabelPrint(QWidget):
-    def __init__(self, conn: Connection, parent=None):
-        super(LabelPrint, self).__init__(parent)
-        self.conn = conn
-        self.init_ui()
-
-    def init_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setWindowTitle("Anyakísérő nyomtatás")
-        self.setFixedSize(400, 600)
-        self.setWindowIcon(QIcon("favicon.ico"))
-
-        print_button = QPushButton("Nyomtatás", self)
-        print_button.setFixedWidth(200)
-
-        labels = [
-            "Traceability",
-        ]
-
-        for key in labels:
-            line_edit = QLineEdit(self)
-            line_edit.setObjectName(key)
-            line_edit.setPlaceholderText(key)
-            line_edit.setFixedWidth(200)
-            line_edit.setFixedHeight(30)
-            layout.addWidget(line_edit)
-
-        params = [
-            "PRT1469",
-            "PRT1470",
-            "PRT1471",
-        ]
-
-        combo_box = QComboBox(self)
-        combo_box.setObjectName("params")  # Set the object name
-        combo_box.addItems(params)
-        combo_box.setCurrentText("PRT1470")  # Set the default selected item
-        combo_box.setFixedWidth(200)
-        layout.addWidget(combo_box)
-
-        layout.addWidget(print_button)
-        print_button.clicked.connect(self.print_label)
-
-
-    def print_label(self):
+   def __init__(self, conn: Connection, parent=None):
+       super(LabelPrint, self).__init__(parent)
+       self.conn = conn
+       self.init_ui()
+   def init_ui(self):
+       layout = QVBoxLayout(self)
+       layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+       self.setWindowTitle("Anyakísérő nyomtatás")
+       self.setFixedSize(400, 600)
+       self.setWindowIcon(QIcon("favicon.ico"))
+       print_button = QPushButton("Nyomtatás", self)
+       print_button.setFixedWidth(200)
+       labels = [
+           "Traceability",
+       ]
+       for key in labels:
+           line_edit = QLineEdit(self)
+           line_edit.setObjectName(key)
+           line_edit.setPlaceholderText(key)
+           line_edit.setFixedWidth(200)
+           line_edit.setFixedHeight(30)
+           layout.addWidget(line_edit)
+       params = [
+           "PRT1469",
+           "PRT1470",
+           "PRT1471",
+       ]
+       combo_box = QComboBox(self)
+       combo_box.setObjectName("params")  # Set the object name
+       combo_box.addItems(params)
+       combo_box.setCurrentText("PRT1470")  # Set the default selected item
+       combo_box.setFixedWidth(200)
+       layout.addWidget(combo_box)
+       layout.addWidget(print_button)
+       print_button.clicked.connect(self.print_label)
+   def print_label(self):
+       try:
+           i_objkey = self.findChild(QLineEdit, "Traceability").text()
+           params = {"I_OBJKEY": i_objkey}
+           result = self.conn.call("ZSD_BOS_SHOW_KOMMI", **params)
+           hu_table = result.get('HU_TABLE', [])
+           items_list = []
+           for item in hu_table:
+               traceability = item['OBJKEY']
+               description = item['MATERIAL_TXT']
+               materialnumber = item['MATNR']
+               fifo_key_raw = item['FIFOKEY']
+               quantity = item['MENGE']
+               supplier = item.get('SUPPLIER', 'N/A')  # Assuming supplier key in item
+               avis_number = item.get('AVIS_NUMBER', 'N/A')  # Assuming avis number key in item
+               # Convert fifo_key to DD/MM format
+               fifo_date = datetime.strptime(fifo_key_raw, '%Y%m%d')
+               fifo_key = fifo_date.strftime('%d/%m')
+               items_list.append({
+                   'traceability': traceability,
+                   'description': description,
+                   'material_number': materialnumber,
+                   'fifo_key': fifo_key,
+                   'quantity': quantity,
+                   'supplier': supplier,
+                   'avis_number': avis_number
+               })
+           for row in items_list:
+               description = row['description']
+               materialnumber = row['material_number']
+               supplier = row['supplier']
+               traceability = row['traceability']
+               fifo_key = row['fifo_key']
+               quantity = row['quantity']
+               avis_number = row['avis_number']
+               # PDF létrehozása
+               pdf_filename = f"label_{traceability}.pdf"
+               c = canvas.Canvas(pdf_filename, pagesize=(595, 420))
+               # QR kód generálása
+               qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
+               qr.add_data('A'+ str(traceability))
+               qr.make(fit=True)
+               img = qr.make_image(fill='black', back_color='white')
+               img_filename = f"qr_{traceability}.png"
+               img.save(img_filename)
+               # Add the QR code to the PDF
+               c.drawImage(img_filename, 100, 420 - 97 - 57, width=57, height=57)  # Adjust coordinates and size as needed
+               # Szövegek és téglalapok definiálása a kitöltött változókkal
+               text_blocks = [
+                   {"x0": 12, "y0": 12.52, "width": 289, "height": 27, "text": description, "font_size": 12, "font_type": "Helvetica-Bold"},
+                   {"x0": 12, "y0": 40, "width": 289, "height": 57, "text": "Materialnummer", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 12, "y0": 40, "width": 289, "height": 57, "text": f"{materialnumber}", "font_size": 36, "font_type": "Helvetica-Bold"},
+                   {"x0": 301, "y0": 12.52, "width": 289, "height": 27, "text": supplier, "font_size": 14, "font_type": "Helvetica-Bold"},
+                   {"x0": 301, "y0": 40, "width": 146, "height": 57, "text": "Datum", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 301, "y0": 45, "width": 146, "height": 57, "text": f"{datetime.now().strftime('%d.%m.%Y')}", "font_size": 16, "font_type": "Helvetica-Bold"},
+                   {"x0": 447, "y0": 40, "width": 143, "height": 57, "text": "Lagerplatz", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 12, "y0": 97, "width": 189, "height": 57, "text": "Traceability-Nr. (A)", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 12, "y0": 102, "width": 189, "height": 57, "text": f"{traceability}", "font_size": 12, "font_type": "Helvetica-Bold"},
+                   {"x0": 12, "y0": 154, "width": 189, "height": 28, "text": "Prüfstatus", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 12, "y0": 165, "width": 189, "height": 28, "text": "> SKIPLOT <", "font_size": 12, "font_type": "Helvetica"},
+                   {"x0": 12, "y0": 182, "width": 189, "height": 28, "text": "Prüflos", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 200, "y0": 97, "width": 171.5, "height": 85, "text": "FIFO-Key", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 215, "y0": 105, "width": 171.5, "height": 85, "text": f"{fifo_key}", "font_size": 55, "font_type": "Helvetica-Bold"},
+                   {"x0": 200, "y0": 182, "width": 171.5, "height": 28, "text": "Ext. Benennung", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 372, "y0": 97, "width": 218, "height": 56, "text": "Inhalt IST", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 372, "y0": 102, "width": 218, "height": 56, "text": f"{quantity}", "font_size": 12, "font_type": "Helvetica-Bold"},
+                   {"x0": 372, "y0": 153, "width": 218, "height": 57, "text": "AVIS-Nr. (N)", "font_size": 6, "font_type": "Helvetica-Bold"},
+                   {"x0": 372, "y0": 165, "width": 218, "height": 57, "text": f"{avis_number}", "font_size": 12, "font_type": "Helvetica-Bold"}
+               ]
+               rectangles = [
+                   {"x0": 9.3, "y0": 12.52, "width": 289, "height": 27},
+                   {"x0": 9.3, "y0": 40, "width": 289, "height": 57},
+                   {"x0": 299, "y0": 12.52, "width": 289, "height": 27},
+                   {"x0": 299, "y0": 40, "width": 146, "height": 57},
+                   {"x0": 445, "y0": 40, "width": 143, "height": 57},
+                   {"x0": 9.3, "y0": 97, "width": 189, "height": 57},
+                   {"x0": 9.3, "y0": 154, "width": 189, "height": 28},
+                   {"x0": 9.3, "y0": 182, "width": 189, "height": 28},
+                   {"x0": 198, "y0": 97, "width": 171.5, "height": 85},
+                   {"x0": 198, "y0": 182, "width": 171.5, "height": 28},
+                   {"x0": 370, "y0": 97, "width": 218, "height": 56},
+                   {"x0": 370, "y0": 153, "width": 218, "height": 57}
+               ]
+               # Szövegek rajzolása
+               for block in text_blocks:
+                   c.setFont(block["font_type"], block["font_size"])
+                   text_y = 420 - block["y0"] - block["font_size"]
+                   for line in block["text"].split('\n'):
+                       c.drawString(block["x0"], text_y, line)
+                       text_y -= block["font_size"]
+               # Téglalapok rajzolása
+               for rect in rectangles:
+                   c.setStrokeColorRGB(0, 0, 0)
+                   c.setLineWidth(0.5)
+                   c.rect(rect["x0"], 420 - rect["y0"] - rect["height"], rect["width"], rect["height"])
+               # PDF mentése
+               c.save()
+       except Exception as e:
+           QMessageBox.critical(self, "Error", str(e))
+   def print_pdf(sumatra_path, pdf_filename, printer_name):
+        print_command = [sumatra_path, "-print-to", printer_name, pdf_filename]
         try:
-            i_objkey = self.findChild(QLineEdit, "Traceability").text()
+            result = subprocess.run(print_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            logger.info(f"Print job sent to {printer_name} for {pdf_filename}. STDOUT: {result.stdout}. STDERR: {result.stderr}")
+            return True
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to print document: {e}. STDOUT: {e.stdout}. STDERR: {e.stderr}")
+            return False
+    # Function to check and log print queue status
+   def check_print_queue(printer_name):
+        powershell_script = f'Get-Printer -Name "{printer_name}" | Get-PrintJob | Format-Table Id, Name, JobStatus, DocumentName -AutoSize'
+        command = ["powershell", "-Command", powershell_script]
 
-            params = {
-                "I_OBJKEY": i_objkey
-            }
-            result = self.conn.call("ZSD_BOS_SHOW_KOMMI", **params)
-            hu_table = result.get('HU_TABLE', [])
-            
-            items_list = []
-            for item in hu_table:
-                traceability = item['OBJKEY']
-                description = item['MATERIAL_TXT']
-                materialnumber = item['MATNR']
-                fifo_key = item['FIFOKEY']
-                quantity = int(item['MENGE'])
+        try:
+            result = subprocess.run(command, check=True, capture_output=True, text=True)
+            if result.stdout:
+                logger.info(f"Queue status for {printer_name}: {result.stdout}")
+                return True
+            else:
+                logger.info(f"No active print jobs for {printer_name}.")
+                return False
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error querying print queue: {e.output}")
 
-                items_list.append({
-                'traceability': traceability,
-                'description': description,
-                'material_number': materialnumber,
-                'fifo_key': fifo_key,
-                'quantity': quantity
-            })
-            
-        except Exception as e:
-            #QMessageBox.critical(self, "Error", str(e))
-            
-            for row in items_list():  # Feltételezve, hogy az első sor a fejléc
-                description, materialnumber, supplier, traceability, fifo_key, quantity, avis_number = row
-
-                # PDF létrehozása
-                pdf_filename = f"label_{traceability}.pdf"
-                c = canvas.Canvas(pdf_filename, pagesize=(595, 420))
-
-                # QR kód generálása
-                qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
-                qr.add_data('A'+ str(traceability))
-                qr.make(fit=True)
-                img = qr.make_image(fill='black', back_color='white')
-                img_filename = f"qr_{traceability}.png"
-                img.save(img_filename)
-
-                # Add the QR code to the PDF
-                c.drawImage(img_filename, 100, 420 - 97 - 57, width=57, height=57)  # Adjust coordinates and size as needed
-
-                # Szövegek és téglalapok definiálása a kitöltött változókkal
-                text_blocks = [
-                    {"x0": 12, "y0": 12.52, "width": 289, "height": 27, "text": description, "font_size": 12, "font_type": "Helvetica-Bold"},
-                    {"x0": 12, "y0": 40, "width": 289, "height": 57, "text": "Materialnummer", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 12, "y0": 40, "width": 289, "height": 57, "text": f"{materialnumber}", "font_size": 36, "font_type": "Helvetica-Bold"},
-                    {"x0": 301, "y0": 12.52, "width": 289, "height": 27, "text": supplier, "font_size": 14, "font_type": "Helvetica-Bold"},
-                    {"x0": 301, "y0": 40, "width": 146, "height": 57, "text": "Datum", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 301, "y0": 45, "width": 146, "height": 57, "text": f"{datetime.now().strftime('%d.%m.%Y')}", "font_size": 16, "font_type": "Helvetica-Bold"},
-                    {"x0": 447, "y0": 40, "width": 143, "height": 57, "text": "Lagerplatz", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 12, "y0": 97, "width": 189, "height": 57, "text": "Traceability-Nr. (A)", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 12, "y0": 102, "width": 189, "height": 57, "text": f"{traceability}", "font_size": 12, "font_type": "Helvetica-Bold"},
-                    {"x0": 12, "y0": 154, "width": 189, "height": 28, "text": "Prüfstatus", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 12, "y0": 165, "width": 189, "height": 28, "text": "> SKIPLOT <", "font_size": 12, "font_type": "Helvetica"},
-                    {"x0": 12, "y0": 182, "width": 189, "height": 28, "text": "Prüflos", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 200, "y0": 97, "width": 171.5, "height": 85, "text": "FIFO-Key", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 215, "y0": 105, "width": 171.5, "height": 85, "text": f"{fifo_key}", "font_size": 55, "font_type": "Helvetica-Bold"},
-                    {"x0": 200, "y0": 182, "width": 171.5, "height": 28, "text": "Ext. Benennung", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 372, "y0": 97, "width": 218, "height": 56, "text": "Inhalt IST", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 372, "y0": 102, "width": 218, "height": 56, "text": f"{quantity}", "font_size": 12, "font_type": "Helvetica-Bold"},
-                    {"x0": 372, "y0": 153, "width": 218, "height": 57, "text": "AVIS-Nr. (N)", "font_size": 6, "font_type": "Helvetica-Bold"},
-                    {"x0": 372, "y0": 165, "width": 218, "height": 57, "text": f"{avis_number}", "font_size": 12, "font_type": "Helvetica-Bold"}
-                ]
-
-                rectangles = [
-                    {"x0": 9.3, "y0": 12.52, "width": 289, "height": 27},
-                    {"x0": 9.3, "y0": 40, "width": 289, "height": 57},
-                    {"x0": 299, "y0": 12.52, "width": 289, "height": 27},
-                    {"x0": 299, "y0": 40, "width": 146, "height": 57},
-                    {"x0": 445, "y0": 40, "width": 143, "height": 57},
-                    {"x0": 9.3, "y0": 97, "width": 189, "height": 57},
-                    {"x0": 9.3, "y0": 154, "width": 189, "height": 28},
-                    {"x0": 9.3, "y0": 182, "width": 189, "height": 28},
-                    {"x0": 198, "y0": 97, "width": 171.5, "height": 85},
-                    {"x0": 198, "y0": 182, "width": 171.5, "height": 28},
-                    {"x0": 370, "y0": 97, "width": 218, "height": 56},
-                    {"x0": 370, "y0": 153, "width": 218, "height": 57}
-                ]
-
-                # Szövegek rajzolása
-                for block in text_blocks:
-                    c.setFont(block["font_type"], block["font_size"])
-                    text_y = 420 - block["y0"] - block["font_size"]
-                    for line in block["text"].split('\n'):
-                        c.drawString(block["x0"], text_y, line)
-                        text_y -= block["font_size"]
-
-                # Téglalapok rajzolása
-                for rect in rectangles:
-                    c.setStrokeColorRGB(0, 0, 0)
-                    c.setLineWidth(0.5)
-                    c.rect(rect["x0"], 420 - rect["y0"] - rect["height"], rect["width"], rect["height"])
-
-                # PDF mentése
-                c.save()
+            return False
+           
+               
