@@ -1,202 +1,159 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow
-from PyQt6.QtCore import Qt, QThread, QTime, QTimer, pyqtSignal, pyqtSlot, QItemSelectionModel, QMetaObject, Q_ARG
-from PyQt6.QtGui import QScreen, QIcon, QColor
-from PyQt6.QtWidgets import *
+import sqlite3
+from datetime import datetime
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLineEdit, QComboBox, QMessageBox
 from pyrfc import Connection
-import pandas as pd
+from reportlab.lib.pagesizes import landscape, letter
+from reportlab.pdfgen import canvas
+from datetime import datetime
+import qrcode
+from PIL import Image
 
-class ShippingWork(QThread):
-    data_ready = pyqtSignal(list)
-    error = pyqtSignal(str)
 
-    def __init__(self, connection, thread_type, combined_data):
-        super().__init__()
-        self.connection = connection
-        self.thread_type = thread_type
-        self.combined_data= combined_data  # This will store the DataFrame with shipping data
+class LabelPrint(QWidget):
+    def __init__(self, conn: Connection, parent=None):
+        super(LabelPrint, self).__init__(parent)
+        self.conn = conn
+        self.init_ui()
 
-    def run(self):
-        # Process each shipment based on final_data
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setWindowTitle("Anyakísérő nyomtatás")
+        self.setFixedSize(400, 600)
+        self.setWindowIcon(QIcon("favicon.ico"))
+
+        print_button = QPushButton("Nyomtatás", self)
+        print_button.setFixedWidth(200)
+
+        labels = [
+            "Traceability",
+        ]
+
+        for key in labels:
+            line_edit = QLineEdit(self)
+            line_edit.setObjectName(key)
+            line_edit.setPlaceholderText(key)
+            line_edit.setFixedWidth(200)
+            line_edit.setFixedHeight(30)
+            layout.addWidget(line_edit)
+
+        params = [
+            "PRT1469",
+            "PRT1470",
+            "PRT1471",
+        ]
+
+        combo_box = QComboBox(self)
+        combo_box.setObjectName("params")  # Set the object name
+        combo_box.addItems(params)
+        combo_box.setCurrentText("PRT1470")  # Set the default selected item
+        combo_box.setFixedWidth(200)
+        layout.addWidget(combo_box)
+
+        layout.addWidget(print_button)
+        print_button.clicked.connect(self.print_label)
+
+
+    def print_label(self):
         try:
-            results = []
-            for _, row in self.final_data.iterrows():
-                trb_value_str = row['Traceability']
-                exidv_value_str = row['EXIDV']
-                result = self.process_shipment(trb_value_str, exidv_value_str)
-                results.append(result)
-            self.data_ready.emit(results)  # Emit the signal with the results once all processing is done
-        except Exception as e:
-            self.error.emit(str(e))  # Emit an error signal if something goes wrong
+            i_objkey = self.findChild(QLineEdit, "Traceability").text()
 
-    def process_shipment(self, trb_value_str, exidv_value_str):
-        try:
-            # Simulating an SAP function module call
-            result = self.connection.call('ZTRB_SHIPPING', ARPLID='0291VERSAND 0001', HU_TRB=trb_value_str, HU_KUNDE=exidv_value_str)
-            return result
-        except Exception as e:
-            self.error.emit(f"Failed to process shipment for {trb_value_str}: {str(e)}")
-            return None
-
-
-
-class ShippingWindow(QMainWindow):
-    def __init__(self, connection, parent=None):
-        super().__init__(parent)
-        self.connection = connection
-        self.setWindowTitle("Kiszállítás")
-        self.setFixedSize(1680, 720)
-        self.setWindowIcon(QIcon('favicon.ico'))
-        self.traceability_data = pd.DataFrame()
-        self.combined_data = pd.DataFrame()
-        self.initUI()
-
-    def initUI(self):
-        central_widget = QWidget(self)
-        self.setCentralWidget(central_widget)
-
-        # Create a QHBoxLayout as the main layout
-        main_layout = QHBoxLayout(central_widget)
-
-        self.table = QTableWidget()
-        main_layout.addWidget(self.table)  # Add the table to the main layout
-
-        # Create a QGroupBox to hold the buttons and fields
-        group_box = QGroupBox("Kiszállítás kezelése")
-        group_box.setFixedWidth(220)
-        layout = QVBoxLayout(group_box)
-        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout.setContentsMargins(5, 5, 5, 5)
-
-        self.storageBinDropdown = QComboBox()
-        self.storageBinDropdown.setFixedWidth(200)
-        self.storageBinDropdown.addItems(['DUSCHER-KI', 'VW-AUDI-SKODA', 'PORSCHE', 'RENAULT-NISSAN', 'DAIMLER', 'CONTI',
-                                          'BMW', 'OPEL'])
-        layout.addWidget(self.storageBinDropdown)
-
-        self.fetchButton = QPushButton('Traceability adatok lekérése')
-        self.fetchButton.setFixedWidth(200)
-        self.fetchButton.clicked.connect(self.call_zsd_bos_show_kommi)
-        layout.addWidget(self.fetchButton)
-        
-        self.vbelnInput = QPlainTextEdit()  # Use QPlainTextEdit instead of QLineEdit
-        self.vbelnInput.setPlaceholderText("Szállítólevél számok")
-        self.vbelnInput.setFixedWidth(200)
-        self.vbelnInput.setFixedHeight(100)
-        layout.addWidget(self.vbelnInput)
-
-        self.fetchDeliveryButton = QPushButton('Kiszállítási adatok lekérése')
-        self.fetchDeliveryButton.setFixedWidth(200)
-        self.fetchDeliveryButton.clicked.connect(self.call_zle_get_delivery)
-        self.fetchDeliveryButton.clicked.connect(lambda: self.populate_table(self.table))
-        layout.addWidget(self.fetchDeliveryButton)
-
-        self.startShipmentButton = QPushButton('Végrehajtás')
-        self.startShipmentButton.setFixedWidth(200)
-        self.startShipmentButton.clicked.connect(self.start_shipment_thread)
-        layout.addWidget(self.startShipmentButton)
-
-        # Add the QGroupBox to the main layout
-        main_layout.addWidget(group_box)
-
-    def call_zsd_bos_show_kommi(self):
-        lagerplatz = self.storageBinDropdown.currentText()
-        try:
-            result = self.connection.call('ZSD_BOS_SHOW_KOMMI_STAT_01_UK', I_LAGERPLATZ=lagerplatz)
-            hu_table = [{'Traceability': item['OBJKEY'], 'TRB_MATNR': item['MATNR'], 'MATERIAL_TXT': item['MATERIAL_TXT'], "LAGERPLATZ": item['LAGERPLATZ'],
-                        'MENGE': item['MENGE'],
-                        'FIFOKEY': item['FIFOKEY'],
-                        'DATUM': item['DATUM'],
-                        'UZEIT': item["UZEIT"]} for item in result['HU_TABLE']]
-            self.traceability_data = pd.DataFrame(hu_table)
-            if 'MENGE' in self.traceability_data:
-                self.traceability_data['MENGE'] = pd.to_numeric(self.traceability_data['MENGE'], errors='coerce').fillna(0).astype(int)
-            if 'DATUM' in self.traceability_data:
-                self.traceability_data['DATUM'] = pd.to_datetime(self.traceability_data['DATUM'], format='%Y%m%d').dt.strftime('%Y.%m.%d')
-            if 'UZEIT' in self.traceability_data:
-                self.traceability_data['UZEIT'] = pd.to_datetime(self.traceability_data['UZEIT'], format='%H%M%S').dt.strftime('%H:%M:%S')
+            params = {
+                "I_OBJKEY": i_objkey
+            }
+            result = self.conn.call("ZSD_BOS_SHOW_KOMMI", **params)
+            hu_table = result.get('HU_TABLE', [])
             
-            self.show_data(self.table, self.traceability_data)
-        except Exception as e:
-            QMessageBox.critical(self, "Connection Error", f"Failed to fetch data: {str(e)}")
-            return    
+            items_list = []
+            for item in hu_table:
+                traceability = item['OBJKEY']
+                description = item['MATERIAL_TXT']
+                materialnumber = item['MATNR']
+                fifo_key = item['FIFOKEY']
+                quantity = int(item['MENGE'])
 
-    def call_zle_get_delivery(self):
-        vbeln_input = self.vbelnInput.toPlainText()  # Get the text from the QPlainTextEdit widget
-        vbeln_values = vbeln_input.split('\n') # Split the input string by comma to get multiple values
-        delivery_data = pd.DataFrame()  # Initialize an empty DataFrame to collect data
-        
-        try:
-            for vbeln in vbeln_values:
-                result = self.connection.call('ZLE_GET_DELIVERYDATA', VBELN=vbeln.strip())  # Strip whitespace from VBELN values
-                hudata = [{'EXIDV': item['EXIDV'], 'DELIVERY_MATNR': item['MATNR'], 'VEMNG': item['VEMNG'], "EXIDV2": item['EXIDV2']}
-                        for item in result['HUDATA']]
-                vbeln_df = pd.DataFrame(hudata)
-                if 'VEMNG' in vbeln_df and 'DELIVERY_MATNR' in vbeln_df:
-                    vbeln_df['VEMNG'] = pd.to_numeric(vbeln_df['VEMNG'], errors='coerce').fillna(0).astype(int)
-                    vbeln_df['DELIVERY_MATNR'] = vbeln_df['DELIVERY_MATNR'].apply(lambda x: x[-8:])
-                delivery_data = delivery_data.append(vbeln_df, ignore_index=True)
-        except Exception as e:
-            error_message = f"Error fetching delivery data: {str(e)}"
-            QMessageBox.critical(self, "Error", error_message)
+                items_list.append({
+                'traceability': traceability,
+                'description': description,
+                'material_number': materialnumber,
+                'fifo_key': fifo_key,
+                'quantity': quantity
+            })
             
-        self.show_data(self.table, self.delivery_data)    
-        self.delivery_data = delivery_data
-        print(self.delivery_data.head())
-        self.populate_table(self.table)
+        except Exception as e:
+            #QMessageBox.critical(self, "Error", str(e))
+            
+            for row in items_list():  # Feltételezve, hogy az első sor a fejléc
+                description, materialnumber, supplier, traceability, fifo_key, quantity, avis_number = row
 
-    def merge_dataframes(self):
-        # Ensure data types match, especially if they're numeric
-        self.traceability_data['MENGE'] = pd.to_numeric(self.traceability_data['MENGE'], errors='coerce')
-        self.delivery_data['VEMNG'] = pd.to_numeric(self.delivery_data['VEMNG'], errors='coerce')
+                # PDF létrehozása
+                pdf_filename = f"label_{traceability}.pdf"
+                c = canvas.Canvas(pdf_filename, pagesize=(595, 420))
 
-        # Merge DataFrames on 'TRB_MATNR' matching 'DELIVERY_MATNR' and also ensure 'MENGE' and 'VEMNG' match
-        combined_data = pd.merge(self.traceability_data, self.delivery_data, left_on=['TRB_MATNR', 'MENGE'], right_on=['DELIVERY_MATNR', 'VEMNG'])
+                # QR kód generálása
+                qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
+                qr.add_data('A'+ str(traceability))
+                qr.make(fit=True)
+                img = qr.make_image(fill='black', back_color='white')
+                img_filename = f"qr_{traceability}.png"
+                img.save(img_filename)
 
-        # Sort the resulting DataFrame if needed
-        combined_data.sort_values(by=['MENGE', 'VEMNG'], inplace=True)
+                # Add the QR code to the PDF
+                c.drawImage(img_filename, 100, 420 - 97 - 57, width=57, height=57)  # Adjust coordinates and size as needed
 
-        return combined_data
+                # Szövegek és téglalapok definiálása a kitöltött változókkal
+                text_blocks = [
+                    {"x0": 12, "y0": 12.52, "width": 289, "height": 27, "text": description, "font_size": 12, "font_type": "Helvetica-Bold"},
+                    {"x0": 12, "y0": 40, "width": 289, "height": 57, "text": "Materialnummer", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 12, "y0": 40, "width": 289, "height": 57, "text": f"{materialnumber}", "font_size": 36, "font_type": "Helvetica-Bold"},
+                    {"x0": 301, "y0": 12.52, "width": 289, "height": 27, "text": supplier, "font_size": 14, "font_type": "Helvetica-Bold"},
+                    {"x0": 301, "y0": 40, "width": 146, "height": 57, "text": "Datum", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 301, "y0": 45, "width": 146, "height": 57, "text": f"{datetime.now().strftime('%d.%m.%Y')}", "font_size": 16, "font_type": "Helvetica-Bold"},
+                    {"x0": 447, "y0": 40, "width": 143, "height": 57, "text": "Lagerplatz", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 12, "y0": 97, "width": 189, "height": 57, "text": "Traceability-Nr. (A)", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 12, "y0": 102, "width": 189, "height": 57, "text": f"{traceability}", "font_size": 12, "font_type": "Helvetica-Bold"},
+                    {"x0": 12, "y0": 154, "width": 189, "height": 28, "text": "Prüfstatus", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 12, "y0": 165, "width": 189, "height": 28, "text": "> SKIPLOT <", "font_size": 12, "font_type": "Helvetica"},
+                    {"x0": 12, "y0": 182, "width": 189, "height": 28, "text": "Prüflos", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 200, "y0": 97, "width": 171.5, "height": 85, "text": "FIFO-Key", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 215, "y0": 105, "width": 171.5, "height": 85, "text": f"{fifo_key}", "font_size": 55, "font_type": "Helvetica-Bold"},
+                    {"x0": 200, "y0": 182, "width": 171.5, "height": 28, "text": "Ext. Benennung", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 372, "y0": 97, "width": 218, "height": 56, "text": "Inhalt IST", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 372, "y0": 102, "width": 218, "height": 56, "text": f"{quantity}", "font_size": 12, "font_type": "Helvetica-Bold"},
+                    {"x0": 372, "y0": 153, "width": 218, "height": 57, "text": "AVIS-Nr. (N)", "font_size": 6, "font_type": "Helvetica-Bold"},
+                    {"x0": 372, "y0": 165, "width": 218, "height": 57, "text": f"{avis_number}", "font_size": 12, "font_type": "Helvetica-Bold"}
+                ]
 
-    def show_data(self, table_widget, data):
-        table_widget.setRowCount(len(data))
-        table_widget.setColumnCount(len(data.columns))
-        table_widget.setHorizontalHeaderLabels(data.columns.tolist())
-        
-        for i, (index, row) in enumerate(data.iterrows()):
-            for j, value in enumerate(row):
-                table_widget.setItem(i, j, QTableWidgetItem(str(value)))
-    
-    def populate_table(self, table_widget):
-        combined_data = self.merge_dataframes()
-        
-        table_widget.setRowCount(len(combined_data))
-        table_widget.setColumnCount(len(combined_data.columns))
-        table_widget.setHorizontalHeaderLabels(combined_data.columns)
-        
-        for i, (index, row) in enumerate(combined_data.iterrows()):
-            for j, value in enumerate(row):
-                table_widget.setItem(i, j, QTableWidgetItem(str(value)))
-    
-    def start_shipment_thread(self):
-        # Check if the thread is already running
-        if hasattr(self, 'shipping_thread') and self.shipping_thread.isRunning():
-            QMessageBox.warning(self, "Thread Running", "The shipment process is already running.")
-            return
+                rectangles = [
+                    {"x0": 9.3, "y0": 12.52, "width": 289, "height": 27},
+                    {"x0": 9.3, "y0": 40, "width": 289, "height": 57},
+                    {"x0": 299, "y0": 12.52, "width": 289, "height": 27},
+                    {"x0": 299, "y0": 40, "width": 146, "height": 57},
+                    {"x0": 445, "y0": 40, "width": 143, "height": 57},
+                    {"x0": 9.3, "y0": 97, "width": 189, "height": 57},
+                    {"x0": 9.3, "y0": 154, "width": 189, "height": 28},
+                    {"x0": 9.3, "y0": 182, "width": 189, "height": 28},
+                    {"x0": 198, "y0": 97, "width": 171.5, "height": 85},
+                    {"x0": 198, "y0": 182, "width": 171.5, "height": 28},
+                    {"x0": 370, "y0": 97, "width": 218, "height": 56},
+                    {"x0": 370, "y0": 153, "width": 218, "height": 57}
+                ]
 
-        # Merge dataframes to prepare data for the thread
-        final_data = self.merge_dataframes()
-        # Create and start the shipping thread
-        self.shipping_thread = ShippingWork(self.connection, 'shipping_thread', final_data)
-        self.shipping_thread.data_ready.connect(self.handle_data_ready)
-        self.shipping_thread.error.connect(self.handle_error)
-        self.shipping_thread.start()
+                # Szövegek rajzolása
+                for block in text_blocks:
+                    c.setFont(block["font_type"], block["font_size"])
+                    text_y = 420 - block["y0"] - block["font_size"]
+                    for line in block["text"].split('\n'):
+                        c.drawString(block["x0"], text_y, line)
+                        text_y -= block["font_size"]
 
-    def handle_data_ready(self, data):
-        QMetaObject.invokeMethod(self, "update_gui_with_data", Qt.QueuedConnection, Q_ARG(list, data))
+                # Téglalapok rajzolása
+                for rect in rectangles:
+                    c.setStrokeColorRGB(0, 0, 0)
+                    c.setLineWidth(0.5)
+                    c.rect(rect["x0"], 420 - rect["y0"] - rect["height"], rect["width"], rect["height"])
 
-    def update_gui_with_data(self, data):
-        # Update GUI components here
-        print("Shipment processed successfully:", data)
-
-    def handle_error(self, error_message):
-        print("Error processing shipment:", error_message)
+                # PDF mentése
+                c.save()
