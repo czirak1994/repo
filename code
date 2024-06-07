@@ -1,68 +1,52 @@
-from pyrfc import Connection
-import sqlite3
+PS N:\Python\Prodplan> & c:/Users/czirala/BENTELER-Python/python.exe n:/Python/Prodplan/main.py
+C:\Users\czirala\BENTELER-Python\lib\site-packages\openpyxl\worksheet\_reader.py:329: UserWarning: Data Validation extension is not supported and will be removed
+  warn(msg)
+C:\Users\czirala\BENTELER-Python\lib\site-packages\openpyxl\reader\drawings.py:29: UserWarning: DrawingML support is incomplete and limited to charts and images only. Shapes and drawings will be lost.
+  warn("DrawingML support is incomplete and limited to charts and images only. Shapes and drawings will be lost.")
+n:\Python\Prodplan\main.py:22: FutureWarning: DataFrame.applymap has been deprecated. Use DataFrame.map instead.
+  df = df.applymap(lambda x: x.strftime('%Y-%m-%d 00:00:00') if isinstance(x, datetime) else str(x) if x is not None else '')
+n:\Python\Prodplan\main.py:22: FutureWarning: DataFrame.applymap has been deprecated. Use DataFrame.map instead.
+  df = df.applymap(lambda x: x.strftime('%Y-%m-%d 00:00:00') if isinstance(x, datetime) else str(x) if x is not None else '')
+n:\Python\Prodplan\main.py:22: FutureWarning: DataFrame.applymap has been deprecated. Use DataFrame.map instead.
+  df = df.applymap(lambda x: x.strftime('%Y-%m-%d 00:00:00') if isinstance(x, datetime) else str(x) if x is not None else '')
+       Column_0   Column_1 Column_2 Column_3 Column_4 Column_5 Column_6 Column_7 Column_8 Column_9  ... Column_244 Column_245 Column_246 Column_247 Column_248 Column_249 Column_250 Column_251 Column_252              Sheet
+0                                                                                                   ...          0          0          0          0          0          0          0                        KoVoMo szerelések    
+1                                                                                                   ...          0          0          0          0          0          0          0                        KoVoMo szerelések    
+2                                                                                                   ...          0          0          0          0          0          0          0                        KoVoMo szerelések    
+3                                                                                                   ...          0          0          0          0          0          0          0                        KoVoMo szerelések    
+4                                                                                                   ...          0          0          0          0          0          0          0          0             KoVoMo szerelések    
+...         ...        ...      ...      ...      ...      ...      ...      ...      ...      ...  ...        ...        ...        ...        ...        ...        ...        ...        ...        ...                ...    
+2010  BTS ( % )  116-9999%                                                                          ...                     0                     0                     0                     0             Wielpütz szerelés    
+2011  BTS ( % )                                                                                     ...                                                                                                     Wielpütz szerelés    
+2012  BTS ( % )                                                                                     ...                     0                     0                     0                     0             Wielpütz szerelés    
+2013  BTS ( % )                                                                                     ...                     0                     0                     0                     0             Wielpütz szerelés    
+2014  BTS ( % )                                                                                     ...                     0                     0                     0                     0             Wielpütz szerelés    
 
-class CreateTraceability():
-    def __init__(self, connection: Connection, parent=None, ):
-       super(CreateTraceability, self).__init__(parent)
-       self.connection = connection
-       self.sap_connection()
-       self.create_traceability()
-       self.call_function()
-    def sap_connection(self):
-        try:
-            self.connection = Connection(
-            user='user',
-            passwd='password',
-            ashost='host',
-            sysnr='77',
-            client='100',
-            #lang='EN',
-            )
-        except:
-            print('Hiba')
-    def create_traceability(self):
-        conn = sqlite3.connect('project_traceability.db')
-        c = conn.cursor()
+[2015 rows x 254 columns]
+Target date 2024-06-07 00:00:00 found at column 181
+Target date 2024-06-07 00:00:00 found at column 181
+Target date 2024-06-07 00:00:00 found at column 10
+Target date 2024-06-07 00:00:00 found at column 181
+Target date 2024-06-07 00:00:00 found at column 181
+Target date 2024-06-07 00:00:00 found at column 10
+Target date 2024-06-07 00:00:00 found at column 181
+Target date 2024-06-07 00:00:00 found at column 181
+Traceback (most recent call last):
+  File "C:\Users\czirala\BENTELER-Python\lib\site-packages\pandas\core\indexes\base.py", line 3791, in get_loc
+    return self._engine.get_loc(casted_key)
+  File "index.pyx", line 152, in pandas._libs.index.IndexEngine.get_loc
+  File "index.pyx", line 181, in pandas._libs.index.IndexEngine.get_loc
+  File "pandas\_libs\hashtable_class_helper.pxi", line 7080, in pandas._libs.hashtable.PyObjectHashTable.get_item
+  File "pandas\_libs\hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
+KeyError: 181
 
-        c.execute('''
-                CREATE TABLE IF NOT EXISTS proj_traceability(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    traceability TEXT NOT NULL
-                )
-                ''')
-        c.execute('SELECT traceability FROM proj_traceability ORDER BY id DESC LIMIT 1 ')
-        row = c.fetchone()
-        
-        if row is None:
-            new_traceability = 1
-        else:
-            last_traceability = row[0]
-            new_traceability = int(last_traceability.replace('proj', '')) +1
-        
-        
-        created_traceability = f'proj{new_traceability:07d}'
-        
-        c.execute('INSERT INTO proj_traceability (traceability) VALUES (?)', (created_traceability,))
-        conn.commit()
-        
-        print(f'Generated trb: {created_traceability}')
-        
-        conn.close()
-        return created_traceability
-    def call_function(self, connection, created_traceability):
-        traceability = created_traceability
-        result = self.connection.call('ZTRB_FIRST_ENTRY_LDL',
-        LIFNR='11',
-        OBJKEY= traceability,
-        MATNR='000000000013010102',
-        VBELN='11',
-        VEMNG='1',
-        VRKME='ST',
-        WERKS='0291',
+The above exception was the direct cause of the following exception:
 
-        )
-        print(result)
-
-        connection.close()
-
-
+Traceback (most recent call last):
+  File "n:\Python\Prodplan\main.py", line 54, in <module>
+    filtered_df = combined_df[combined_df[date_column_name].notna() & (combined_df[date_column_name] != '0') & (combined_df[date_column_name] != '')]
+  File "C:\Users\czirala\BENTELER-Python\lib\site-packages\pandas\core\frame.py", line 3893, in __getitem__
+    indexer = self.columns.get_loc(key)
+  File "C:\Users\czirala\BENTELER-Python\lib\site-packages\pandas\core\indexes\base.py", line 3798, in get_loc
+    raise KeyError(key) from err
+KeyError: 181
