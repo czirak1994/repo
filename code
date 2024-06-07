@@ -31,22 +31,65 @@ Target date 2024-06-07 00:00:00 found at column 181
 Target date 2024-06-07 00:00:00 found at column 10
 Target date 2024-06-07 00:00:00 found at column 181
 Target date 2024-06-07 00:00:00 found at column 181
-Traceback (most recent call last):
-  File "C:\Users\czirala\BENTELER-Python\lib\site-packages\pandas\core\indexes\base.py", line 3791, in get_loc
-    return self._engine.get_loc(casted_key)
-  File "index.pyx", line 152, in pandas._libs.index.IndexEngine.get_loc
-  File "index.pyx", line 181, in pandas._libs.index.IndexEngine.get_loc
-  File "pandas\_libs\hashtable_class_helper.pxi", line 7080, in pandas._libs.hashtable.PyObjectHashTable.get_item
-  File "pandas\_libs\hashtable_class_helper.pxi", line 7088, in pandas._libs.hashtable.PyObjectHashTable.get_item
-KeyError: 181
+Date columns in the 11th row: ['Column_6', 'Column_12', 'Column_13', 'Column_15', 'Column_17', 'Column_19', 'Column_21', 'Column_23', 'Column_25', 'Column_29', 'Column_31', 'Column_33', 'Column_35', 'Column_37', 'Column_39', 
+'Column_41', 'Column_45', 'Column_47', 'Column_49', 'Column_51', 'Column_53', 'Column_55', 'Column_57', 'Column_61', 'Column_63', 'Column_65', 'Column_67', 'Column_69', 'Column_71', 'Column_73', 'Column_77', 'Column_79', 'Column_81', 'Column_83', 'Column_85', 'Column_87', 'Column_89', 'Column_93', 'Column_95', 'Column_97', 'Column_99', 'Column_101', 'Column_103', 'Column_105', 'Column_109', 'Column_111', 'Column_113', 'Column_115', 'Column_117', 
+'Column_119', 'Column_121', 'Column_125', 'Column_127', 'Column_129', 'Column_131', 'Column_133', 'Column_135', 'Column_137', 'Column_141', 'Column_143', 'Column_145', 'Column_147', 'Column_149', 'Column_151', 'Column_153', 'Column_157', 'Column_159', 'Column_161', 'Column_163', 'Column_165', 'Column_167', 'Column_169', 'Column_173', 'Column_175', 'Column_177', 'Column_179', 'Column_181', 'Column_183', 'Column_185', 'Column_189', 'Column_191', 'Column_193', 'Column_195', 'Column_197', 'Column_199', 'Column_201', 'Column_205', 'Column_207', 'Column_209', 'Column_211', 'Column_213', 'Column_215', 'Column_217', 'Column_221', 'Column_223', 'Column_225', 'Column_227', 'Column_229', 'Column_231', 'Column_233', 'Column_237', 'Column_239', 'Column_241', 'Column_243', 'Column_245', 'Column_247', 'Column_249']
 
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "n:\Python\Prodplan\main.py", line 54, in <module>
-    filtered_df = combined_df[combined_df[date_column_name].notna() & (combined_df[date_column_name] != '0') & (combined_df[date_column_name] != '')]
-  File "C:\Users\czirala\BENTELER-Python\lib\site-packages\pandas\core\frame.py", line 3893, in __getitem__
-    indexer = self.columns.get_loc(key)
-  File "C:\Users\czirala\BENTELER-Python\lib\site-packages\pandas\core\indexes\base.py", line 3798, in get_loc
-    raise KeyError(key) from err
-KeyError: 181
+Filtered data for the target date 2024-06-07 00:00:00:
+                                     Column_4  Column_5                                           Column_6            Column_10           Column_181
+0                                                                                                                                               4.5
+1                                                                                                                                               6.5
+2                                                                                                                                                 8
+3                                                                                                                                                19
+5                                                                                                                                           Létszám
+6                                                                                                          2024-06-07 00:00:00               Péntek
+8                                                                                                                                         Darabszám
+9                                   Gép neve   SAP nr.                                          db/műszak               Műszak  2024-06-07 00:00:00
+19                          KoVoMo kézimunka  90083109                                                750                   DE                  282
+28                               Szerelő bal  90082799                                               1150                   DE                  800
+31                               Szerelő bal  90082799                                               1150                   DU                  800
+34                               Szerelő bal  90082799                                               1150                   ÉJ                  800
+127          Plasma Schweisstelle  -10000041  90099841                                               1050                   DE                 1050
+130          Plasma Schweisstelle  -10000041  90099841                                               1050                   DU                 1050
+142          Plasma Schweisstelle  -10000041  90103298                                                624                   ÉJ                  720
+148          Plasma Schweisstelle  -10000041  90116749                                                550                   DU                  500
+154                  Kovomo Waffi - 10026908  90082766                                                530                   DE                  500
+157                  Kovomo Waffi - 10026908  90082766                                                530                   DU                  400
+211                  Kovomo Waffi - 10020700  90082768                                               2600                   DU                 2600
+214                  Kovomo Waffi - 10020700  90082768                                               2600                   ÉJ                 2600
+298   KoVoMo Gyártás /0041/22656/20435/20921  90128462                                                                      DE                  300
+511                            501 H Waffios  90098199                                               1000                   ÉJ                 1000
+514                                                                                                                             2024-06-07 00:00:00
+515                                                                                                                                             282
+518                                                                                                                                            2400
+542                                                                                                                                            2100
+545                                                                                                                                             720
+548                                                                                                                                             500
+551                                                                                                                                             300
+563                                                                                                                                               1
+564                                                                                                                                               1
+565                                                                                                                                               1
+566                                                                                                                                               3
+568                                                                                                   ...                                   Létszám
+569                                                                                                        2024-06-07 00:00:00               Péntek
+571                                                                                                                                       Darabszám
+572                                 Gép neve   SAP nr.                                              Anyag               Műszak  2024-06-07 00:00:00
+921                              robotheg. 1  90128077                         05L 121 157 CQ  Hegesztett                   DE                  910
+925                              robotheg. 1  90128077                         05L 121 157 CQ  Hegesztett                   DU                  910
+929                              robotheg. 1  90128077                         05L 121 157 CQ  Hegesztett                   ÉJ                  910
+1485                                                                                                                            2024-06-07 00:00:00
+1497                                                                                                                        DE                  910
+1500                                                                                                                        DU                  910
+1503                                                                                                                        ÉJ                  910
+1506                                                                                                                      Szum                 2730
+1557                                                                                                                                        Létszám
+1558                                                                                                       2024-06-07 00:00:00               Péntek
+1560                                                                                                                                      Darabszám
+1561                                Gép neve   SAP nr.                                              Anyag               Műszak  2024-06-07 00:00:00
+1574                     szerelő,préselőgép   90129672           04L 121 065 DB Előszerelés,o-ringtartó+l                   DE                    1
+1970                                                                                                                            2024-06-07 00:00:00
+1971                                                                                                                        DE                    1
+1980                                                                                                                      Szum                    1
+2004                                                                                                                     Total                    1
+2008                                                                                                                                              1
+2013                                                                                                                                              1
