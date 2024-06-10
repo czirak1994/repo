@@ -1,34 +1,8 @@
-Serving at port 7680
-127.0.0.1 - - [10/Jun/2024 23:32:21] "CONNECT accounts.google.hu:443 HTTP/1.1" 200 -
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 500, message Error: timed out
-127.0.0.1 - - [10/Jun/2024 23:33:06] "CONNECT accounts.google.hu:443 HTTP/1.1" 500 -
-----------------------------------------
-Exception occurred during processing of request from ('127.0.0.1', 61954)
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 400, message Bad request
-127.0.0.1 - - [10/Jun/2024 23:33:06] "GET http://detectportal.firefox.com/canonical.html HTTP/1.1" 400 -
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 400, message Bad request
-127.0.0.1 - - [10/Jun/2024 23:33:06] "GET http://detectportal.firefox.com/canonical.html HTTP/1.1" 400 -
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 400, message Bad request
-127.0.0.1 - - [10/Jun/2024 23:33:06] "GET http://detectportal.firefox.com/canonical.html HTTP/1.1" 400 -
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 400, message Bad request
-127.0.0.1 - - [10/Jun/2024 23:33:06] "GET http://detectportal.firefox.com/canonical.html HTTP/1.1" 400 -
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 400, message Bad request
-127.0.0.1 - - [10/Jun/2024 23:33:06] "GET http://detectportal.firefox.com/canonical.html HTTP/1.1" 400 -
-127.0.0.1 - - [10/Jun/2024 23:33:06] code 400, message Bad request
-127.0.0.1 - - [10/Jun/2024 23:33:06] "GET http://detectportal.firefox.com/canonical.html HTTP/1.1" 400 -
 Traceback (most recent call last):
-  File "C:\Users\czirala\BENTELER-Python\lib\socketserver.py", line 683, in process_request_thread
-    self.finish_request(request, client_address)
-  File "C:\Users\czirala\BENTELER-Python\lib\socketserver.py", line 360, in finish_request
-    self.RequestHandlerClass(request, client_address, self)
-  File "C:\Users\czirala\BENTELER-Python\lib\http\server.py", line 653, in __init__
-    super().__init__(*args, **kwargs)
-  File "C:\Users\czirala\BENTELER-Python\lib\socketserver.py", line 747, in __init__
-    self.handle()
-  File "C:\Users\czirala\BENTELER-Python\lib\http\server.py", line 427, in handle
-    self.handle_one_request()
-  File "C:\Users\czirala\BENTELER-Python\lib\http\server.py", line 415, in handle_one_request
-    method()
-  File "n:\Python\Stuff\Server\main.py", line 49, in do_CONNECT
-    if conn:
-UnboundLocalError: local variable 'conn' referenced before assignment
+  File "n:\Python\Stuff\Server\main.py", line 82, in <module>
+    with ThreadingSimpleServer(("", PORT), Proxy) as httpd:
+  File "C:\Users\czirala\BENTELER-Python\lib\socketserver.py", line 452, in __init__
+    self.server_bind()
+  File "C:\Users\czirala\BENTELER-Python\lib\socketserver.py", line 466, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [WinError 10013] A szoftvercsatornához a hozzáférési engedélyeket megsértő módon történt hozzáférés
